@@ -118,7 +118,7 @@ def print_data(results):
         s += data['score']
         if (data['category'] == 'SIX'):
             print(f"BONUS : {bonus} ({bonus_sum})")
-    print(f"TOTAL : {s}")
+    print(f"TOTAL : {s + bonus}")
     
 def read_files(directory_path):
     files = []
@@ -193,6 +193,8 @@ def get_all_match_data(datas):
         print()
         print_data(game_result)
         print()
+        
+        count += 1
     
     avg = calculate_average(total_result)
     
