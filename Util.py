@@ -136,7 +136,12 @@ def calculate_average(total_result):
     avg = {}
     avg['BONUS'] = 0
     
+    s = 0
+    mx = 0
+    mn = 300000
+    
     for result in total_result:
+        total = 0
         for data in result:
             
             if data['category'] not in avg:
@@ -147,16 +152,23 @@ def calculate_average(total_result):
             else:
                 avg[data['category']] += data['score']
             
+            total += data['score']
+            
         bonus_sum = sum(item['score'] for item in result if item['category'] in target_categories)
         
         if (bonus_sum >= 63000):
             avg['BONUS'] += 1
+            total += 35000
+        
+        s += total
+        mn = min(total, mn)
+        mx = max(total, mx)
         
     for key in avg:
         if (avg[key] >= 1000):
             avg[key] /= len(total_result)
     
-    return avg
+    return avg, s / len(total_result), mx, mn
 
 def get_all_match_data(datas):
     
@@ -168,8 +180,11 @@ def get_all_match_data(datas):
     total_result = []
     
     for data in datas:
-        team = 'FIRST' if data.strip('\\')[1][0] == 'F' else 'SECOND'
         game_data = load_game_data_from_file(data)
+
+        match = re.search(rf'\[(FIRST|SECOND)\s+"{re.escape('Team 613')}"\]', game_data)
+        team = match.group(1)
+        
         game_result = parse_yacht_data(game_data, team)
         total_result.append(game_result)
         
@@ -196,10 +211,14 @@ def get_all_match_data(datas):
         
         count += 1
     
-    avg = calculate_average(total_result)
+    avg, s, mx, mn = calculate_average(total_result)
     
     print(f'최종 전적 : {wincount}승 {losecount}패 (승률 {wincount / (wincount + losecount) * 100}%)')
     
     categorys = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'BONUS', 'CHOICE', 'FOUR_OF_A_KIND', 'FULL_HOUSE', 'SMALL_STRAIGHT', 'LARGE_STRAIGHT', 'YACHT']
     for category in categorys:
         print(f"{category} : {avg[category]}")
+    
+    print(f'평균 획득 점수 : {s}')
+    print(f'최고 점수 : {mx}')
+    print(f'최저 점수 : {mn}')
