@@ -62,12 +62,14 @@ def calculate_score(category, dice):
 
 def parse_yacht_data(game_data, my_team):
     """
-    게임 데이터를 파싱해서 내 점수 결과를 반환
+    게임 데이터를 파싱해서 내 점수 결과와 배팅 정보를 반환
     my_team: 'FIRST' 또는 'SECOND'
     """
     lines = game_data.strip().split('\n')
     
     my_results = []  # 내가 선택한 카테고리와 점수들
+    my_bids = []     # 내 배팅 금액들
+    opponent_bids = []  # 상대방 배팅 금액들
     
     for line in lines:
         if line.startswith('PUT'):
@@ -85,8 +87,20 @@ def parse_yacht_data(game_data, my_team):
                         'dice': dice,
                         'score': score
                     })
+        elif line.startswith('BID'):
+            # BID FIRST A 460 형태 파싱
+            parts = line.split(' ')
+            if len(parts) >= 4:
+                player = parts[1].strip()  # FIRST 또는 SECOND
+                choice = parts[2].strip()  # A 또는 B
+                bid_amount = int(parts[3].strip())
+                
+                if player == my_team:
+                    my_bids.append(bid_amount)
+                else:
+                    opponent_bids.append(bid_amount)
     
-    return my_results
+    return my_results, my_bids, opponent_bids
 
 def load_game_data_from_file(filename):
     """
@@ -119,6 +133,18 @@ def print_data(results):
         if (data['category'] == 'SIX'):
             print(f"BONUS : {bonus} ({bonus_sum})")
     print(f"TOTAL : {s + bonus}")
+
+def print_bid_analysis(my_bids, opponent_bids):
+    """배팅 분석 결과 출력"""
+    if my_bids:
+        my_avg = sum(my_bids) / len(my_bids)
+        my_total = sum(my_bids)
+        print(f"내 배팅 평균: {my_avg:.1f} (총 {len(my_bids)}회, 총액 {my_total})")
+    
+    if opponent_bids:
+        opp_avg = sum(opponent_bids) / len(opponent_bids)
+        opp_total = sum(opponent_bids)
+        print(f"상대 배팅 평균: {opp_avg:.1f} (총 {len(opponent_bids)}회, 총액 {opp_total})")
     
 def read_files(directory_path):
     files = []
@@ -178,6 +204,8 @@ def get_all_match_data(datas):
     count = 1
     
     total_result = []
+    all_my_bids = []      # 모든 게임의 내 배팅 금액
+    all_opponent_bids = [] # 모든 게임의 상대방 배팅 금액
     
     for data in datas:
         game_data = load_game_data_from_file(data)
@@ -185,8 +213,10 @@ def get_all_match_data(datas):
         match = re.search(rf'\[(FIRST|SECOND)\s+"{re.escape('Team 613')}"\]', game_data)
         team = match.group(1)
         
-        game_result = parse_yacht_data(game_data, team)
+        game_result, my_bids, opponent_bids = parse_yacht_data(game_data, team)
         total_result.append(game_result)
+        all_my_bids.extend(my_bids)
+        all_opponent_bids.extend(opponent_bids)
         
         print('-----------------------------------------------------')
         
@@ -208,17 +238,76 @@ def get_all_match_data(datas):
         print()
         print_data(game_result)
         print()
+        print_bid_analysis(my_bids, opponent_bids)
+        print()
         
         count += 1
     
     avg, s, mx, mn = calculate_average(total_result)
     
-    print(f'최종 전적 : {wincount}승 {losecount}패 (승률 {wincount / (wincount + losecount) * 100}%)')
+    print('=====================================================')
+    print(f'최종 전적 : {wincount}승 {losecount}패 (승률 {wincount / (wincount + losecount) * 100:.1f}%)')
+    print()
+    
+    # 전체 배팅 평균 출력
+    print('전체 배팅 분석:')
+    if all_my_bids:
+        my_total_avg = sum(all_my_bids) / len(all_my_bids)
+        print(f"내 전체 배팅 평균: {my_total_avg:.1f} (총 {len(all_my_bids)}회)")
+    
+    if all_opponent_bids:
+        opp_total_avg = sum(all_opponent_bids) / len(all_opponent_bids)
+        print(f"상대 전체 배팅 평균: {opp_total_avg:.1f} (총 {len(all_opponent_bids)}회)")
+    print()
     
     categorys = ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'BONUS', 'CHOICE', 'FOUR_OF_A_KIND', 'FULL_HOUSE', 'SMALL_STRAIGHT', 'LARGE_STRAIGHT', 'YACHT']
     for category in categorys:
         print(f"{category} : {avg[category]}")
     
-    print(f'평균 획득 점수 : {s}')
+    print(f'평균 획득 점수 : {s:.0f}')
     print(f'최고 점수 : {mx}')
     print(f'최저 점수 : {mn}')
+
+# 단일 게임 데이터 분석 함수 (예시 데이터용)
+def analyze_single_game(game_data, team_name="Team 613"):
+    """단일 게임 데이터를 분석"""
+    # 팀이 FIRST인지 SECOND인지 확인
+    match = re.search(rf'\[(FIRST|SECOND)\s+"{re.escape(team_name)}"\]', game_data)
+    if not match:
+        print(f"팀 '{team_name}'을 찾을 수 없습니다.")
+        return
+    
+    my_team = match.group(1)
+    opponent_team = "SECOND" if my_team == "FIRST" else "FIRST"
+    
+    # 상대팀 이름 찾기
+    opponent_match = re.search(rf'\[{opponent_team}\s+"([^"]+)"\]', game_data)
+    opponent_name = opponent_match.group(1) if opponent_match else "Unknown"
+    
+    print(f"내 팀: {team_name} ({my_team})")
+    print(f"상대팀: {opponent_name} ({opponent_team})")
+    print()
+    
+    game_result, my_bids, opponent_bids = parse_yacht_data(game_data, my_team)
+    
+    # 승부 결과
+    match = re.search(r"SCOREFIRST (\d+)\nSCORESECOND (\d+)", game_data)
+    if match:
+        score_first = int(match.group(1))
+        score_second = int(match.group(2))
+        
+        my_score = score_first if my_team == "FIRST" else score_second
+        opp_score = score_second if my_team == "FIRST" else score_first
+        
+        result = "승리" if my_score > opp_score else "패배"
+        print(f"게임 결과: {result} ({my_score} vs {opp_score})")
+    print()
+    
+    # 점수 분석
+    print("=== 점수 분석 ===")
+    print_data(game_result)
+    print()
+    
+    # 배팅 분석
+    print("=== 배팅 분석 ===")
+    print_bid_analysis(my_bids, opponent_bids)
